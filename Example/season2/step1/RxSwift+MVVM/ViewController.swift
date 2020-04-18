@@ -12,6 +12,18 @@ import UIKit
 
 let MEMBER_LIST_URL = "https://my.api.mockaroo.com/members_with_avatar.json?key=44ce18f0"
 
+class 나중에생기는데이터<T> {
+    private let task: (@escaping (T) -> Void) -> Void
+    
+    init(task: @escaping (@escaping(T) -> Void) -> Void) {
+        self.task = task
+    }
+    
+    func 나중에오면(_ f: @escaping(T) -> Void) {
+        task(f)
+    }
+}
+
 class ViewController: UIViewController {
     @IBOutlet var timerLabel: UILabel!
     @IBOutlet var editView: UITextView!
@@ -32,14 +44,19 @@ class ViewController: UIViewController {
         })
     }
     
-    func downloadJson(_ url: String, _ completion: @escaping (String?) -> Void) {
-        DispatchQueue.global().async {
-            let url = URL(string: url)!
-            let data = try! Data(contentsOf: url)
-            let json = String(data: data, encoding: .utf8)
-            DispatchQueue.main.async {
-                completion(json)
+    func downloadJson(_ url: String) -> Observable<String?> {
+        return Observable.create { f in
+            DispatchQueue.global().async {
+                let url = URL(string: url)!
+                let data = try! Data(contentsOf: url)
+                let json = String(data: data, encoding: .utf8)
+                DispatchQueue.main.async {
+                    f.onNext(json)
+                    f.onCompleted()
+                }
             }
+            
+            return Disposables.create()
         }
     }
 
@@ -51,9 +68,17 @@ class ViewController: UIViewController {
         editView.text = ""
         setVisibleWithAnimation(activityIndicator, true)
         
-        self.downloadJson(MEMBER_LIST_URL) { json in
-            self.editView.text = json
-            self.setVisibleWithAnimation(self.activityIndicator, false)
+        _ = downloadJson(MEMBER_LIST_URL)
+            .subscribe { event in
+                switch event {
+                case .next(let json):
+                    self.editView.text = json
+                    self.setVisibleWithAnimation(self.activityIndicator, false)
+                case .completed:
+                    break
+                case .error:
+                    break
+                }
         }
     }
 }

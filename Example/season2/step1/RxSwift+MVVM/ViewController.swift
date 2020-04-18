@@ -81,18 +81,10 @@ class ViewController: UIViewController {
         // 2. Observable로 오는 데이터를 받아서 처리하는 방법
         _ = downloadJson(MEMBER_LIST_URL)
             .debug()
-            .subscribe { event in
-                switch event {
-                case .next(let json):
-                    DispatchQueue.main.async {
-                        self.editView.text = json
-                        self.setVisibleWithAnimation(self.activityIndicator, false)
-                    }
-                case .completed:
-                    break
-                case .error:
-                    break
-                }
-        }
+            .observeOn(MainScheduler.instance)  // sugar : operator
+            .subscribe(onNext: { json in
+                self.editView.text = json
+                self.setVisibleWithAnimation(self.activityIndicator, false)
+            })
     }
 }

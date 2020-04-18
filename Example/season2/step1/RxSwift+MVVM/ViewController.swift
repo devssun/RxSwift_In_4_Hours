@@ -45,18 +45,28 @@ class ViewController: UIViewController {
     }
     
     func downloadJson(_ url: String) -> Observable<String?> {
-        return Observable.create { f in
-            DispatchQueue.global().async {
-                let url = URL(string: url)!
-                let data = try! Data(contentsOf: url)
-                let json = String(data: data, encoding: .utf8)
-                DispatchQueue.main.async {
-                    f.onNext(json)
-                    f.onCompleted()
+        // 1. 비동기로 생기는 데이터를 observable로 감싸서 return 하는 방법
+        return Observable.create() { emitter in
+            let url = URL(string: url)!
+            let task = URLSession.shared.dataTask(with: url) { (data, _, err) in
+                guard err == nil else {
+                    emitter.onError(err!)
+                    return
                 }
+                
+                if let data = data, let json = String(data: data, encoding: .utf8) {
+                    emitter.onNext(json)
+                }
+                
+                emitter.onCompleted()
             }
             
-            return Disposables.create()
+            task.resume()
+            
+            // subscribe 이 리턴 타입으로 Disposable을 가져서 빈 Disposable 리턴함
+            return Disposables.create() {
+                task.cancel()
+            }
         }
     }
 
@@ -68,12 +78,16 @@ class ViewController: UIViewController {
         editView.text = ""
         setVisibleWithAnimation(activityIndicator, true)
         
+        // 2. Observable로 오는 데이터를 받아서 처리하는 방법
         _ = downloadJson(MEMBER_LIST_URL)
+            .debug()
             .subscribe { event in
                 switch event {
                 case .next(let json):
-                    self.editView.text = json
-                    self.setVisibleWithAnimation(self.activityIndicator, false)
+                    DispatchQueue.main.async {
+                        self.editView.text = json
+                        self.setVisibleWithAnimation(self.activityIndicator, false)
+                    }
                 case .completed:
                     break
                 case .error:
